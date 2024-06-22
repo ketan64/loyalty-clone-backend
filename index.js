@@ -11,7 +11,6 @@ mongoose.connect(config.mongoose.url, config.mongoose.options).then(() => {
     logger.info(`Listening to port ${config.mongoose.port}`);
   });
 });
-// const scheduler = require('./scheduler/schedule.service')
 
 const exitHandler = () => {
   if (server) {

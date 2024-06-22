@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const { v4 } = require('uuid');
-// const { toJSON, paginate } = require('./plugins');
 
 const userSchema = new mongoose.Schema(
   {
@@ -23,9 +22,6 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
-
-// userSchema.plugin(toJSON);
-// userSchema.plugin(paginate);
 
 const User = mongoose.model('users', userSchema);
 
