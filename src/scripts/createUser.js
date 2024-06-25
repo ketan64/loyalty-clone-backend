@@ -9,6 +9,7 @@ const { logger } = require('../config/logger');
 
 const email = process.argv[2];
 const password = process.argv[3];
+const role = process.argv[4];
 
 if (!email) {
   logger.error('Email and password required');
@@ -20,7 +21,8 @@ mongoose.connect(config.mongoose.url, config.mongoose.options).then(async () => 
   const User = require('../models/user.model');
   await User.create({
     email,
-    password
+    password,
+    role
   });
   logger.info('User Created Successfully...');
   process.exit(0);
