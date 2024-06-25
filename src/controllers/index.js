@@ -1,0 +1,1 @@
+module.exports.partnerController = require('./partner.controller')

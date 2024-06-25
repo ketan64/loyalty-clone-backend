@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const { v4 } = require('uuid');
-// const { toJSON, paginate } = require('./plugins');
 
 const userSchema = new mongoose.Schema(
   {
@@ -18,14 +17,17 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String },
     isDeleted: { type: Boolean, default: false },
+    role: { 
+      type: String ,
+      required: true,
+      enum: ['ADMIN', 'SUPER ADMIN', 'USER']
+    },
+    isDeleted: { type: Boolean, default: false },
   },
   {
     timestamps: true,
   },
 );
-
-// userSchema.plugin(toJSON);
-// userSchema.plugin(paginate);
 
 const User = mongoose.model('users', userSchema);
 
