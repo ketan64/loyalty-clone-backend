@@ -24,8 +24,14 @@ const getPartnerList = catchAsync(async (req, res) => {
   res.send(partnerDetails);
 });
 
+const getPartner = catchAsync(async (req, res) => {
+  const partnerDetails = await partnerService.getPartner();
+  res.send(partnerDetails);
+});
+
 module.exports = {
   getPartnerList,
   createPartner,
   updatePartner,
+  getPartner,
 };
