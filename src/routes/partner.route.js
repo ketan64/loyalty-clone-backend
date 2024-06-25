@@ -9,10 +9,10 @@ const router = express.Router({ mergeParams: true });
 router
   .route('/')
   .post(userAuth(['ADMIN']),validate(partnerValidation.createPartner),partnerController.createPartner)
-  .get(userAuth(['USER']),validate(partnerValidation.getPartnerList), partnerController.getPartnerList)
+  .get(userAuth(['USER','ADMIN']),validate(partnerValidation.getPartnerList), partnerController.getPartnerList)
   
  router
   .route('/:id')
   .put(userAuth(['ADMIN']),validate(partnerValidation.updatePartner), partnerController.updatePartner)
-
+  .get(userAuth(['ADMIN', 'USER']),validate(partnerValidation.getPartner), partnerController.getPartner)
 module.exports = router;
