@@ -1,6 +1,6 @@
 /*
 This script add a user
-Useage: node createUser.js email@domain.com password
+Useage: node createUser.js email@domain.com password role
 */
 
 const mongoose = require('mongoose');

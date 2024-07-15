@@ -15,14 +15,14 @@ const pocDetails = new mongoose.Schema(
 )
 
 const earnUnlockPeriod = new mongoose.Schema(
-    {
-      value: String,
-      unit: String,
-      deleted: {
-          type: Boolean,
-          default: false
-      },
-    }
+{
+  value: String,
+  unit: String,
+  deleted: {
+      type: Boolean,
+      default: false
+  },
+}
 ) 
 
 const partnerSchema = new mongoose.Schema(
@@ -51,7 +51,13 @@ const partnerSchema = new mongoose.Schema(
     ],
     mopsExcludedFromEarnAmount: [
         String
-    ]
+    ],
+    transactions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Transaction',
+      },
+    ],
   },
   {
     timestamps: true,
