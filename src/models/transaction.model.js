@@ -20,6 +20,18 @@ const items = new mongoose.Schema(
   }
 ) 
 
+const returnedItems = new mongoose.Schema(
+  {
+    itemId: String,
+    units: Number,
+    category: String,
+    amount: Number,
+    additionalFields : [
+      additionalFields,
+    ] 
+  }
+) 
+
 const modeOfPayments = new mongoose.Schema(
   {
     code : String,
@@ -49,7 +61,6 @@ const transactionSchema = new mongoose.Schema(
     },
     earnAmount: {
       type: Number,
-      required: true
     },
     activityTs: {
       type: Date,
@@ -68,12 +79,28 @@ const transactionSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+    earnTransactionId : {
+      type: String
+    },
     items: [
       items
     ],
+    returnedItems :
+    [
+      returnedItems
+    ],
     modeOfPayments: [
       modeOfPayments
-    ]
+    ],
+    pointsRedeemed : {
+      type : Number,
+    },
+    pointsEarned : {
+      type : Number,
+    },
+    pointsReverted : {
+      type : Number,
+    } 
   },
   {
     timestamps: true
