@@ -85,9 +85,39 @@ const earnTransaction = {
   })
 }
 
+const redeemTransaction = {
+  body: Joi.object({
+    mobileNumber : Joi.string().required(),
+    pointsRedeemed: Joi.number().integer().required(),
+    activityTs: Joi.string().required(),
+    activityCode: Joi.string().required(),
+    actualPurchaseAmount: Joi.number().integer().required(),
+    partnerTransactionId: Joi.string().required(),
+    items: Joi.array().items(
+      Joi.object({
+      itemId: Joi.string().required(),
+      units: Joi.number().integer().required(),
+      category: Joi.string().required(),
+      amount: Joi.number().integer().required(),
+      additionalFields: Joi.array().items({
+        fieldName: Joi.string(),
+        fieldValue: Joi.string()
+      }).optional(),
+    })),
+    modeOfPayments: Joi.array().items(
+      Joi.object({
+        code: Joi.string().required(),
+        name: Joi.string().optional(),
+        amount: Joi.number().integer().required()
+      })
+    ).optional()
+  })
+}
+
 module.exports = {
   updatePartner,
   getPartner,
   createPartner,
-  earnTransaction
+  earnTransaction,
+  redeemTransaction
 };

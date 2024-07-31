@@ -19,5 +19,12 @@ router
 router
   .route('/:id/user-activity/earn-points')
   .post(userAuth(['ADMIN', 'USER']),validate(partnerValidation.earnTransaction),partnerController.earnTransaction)
-  
+
+router
+  .route('/:id/user-activity/redeem-points')
+  .post(userAuth(['ADMIN', 'USER']),validate(partnerValidation.redeemTransaction),partnerController.redeemTransaction); 
+
+router
+  .route('/:id/user-activity/revert-points') 
+  .post(partnerController.revertTransaction); //validate(partnerValidation.revertTransaction),userAuth(['ADMIN', 'USER']),
 module.exports = router;
