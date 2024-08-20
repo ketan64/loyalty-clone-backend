@@ -27,4 +27,9 @@ router
 router
   .route('/:id/user-activity/revert-points') 
   .post(partnerController.revertTransaction); //validate(partnerValidation.revertTransaction),userAuth(['ADMIN', 'USER']),
+
+router
+.route('/:id/add-base-rule')
+.post(partnerController.addBaseRule); //add validations and user authentication  
+
 module.exports = router;

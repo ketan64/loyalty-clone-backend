@@ -1,10 +1,12 @@
 const catchAsync = require('../utils/catchAsync.js');
 const { partnerService } = require('../services/index.js');
 const { memberService } = require('../services/index.js');
+const { ruleService } = require('../services/index.js')
 const { transactionService } = require('../services/index.js');
 const member = require('../models/member.model.js');
 const transaction = require('../models/transaction.model.js')
 const { v4 } = require('uuid');
+const rule = require('../models/rule.model.js');
 
 const createPartner = catchAsync(async (req, res) => {
   const { body } = req;
@@ -33,6 +35,18 @@ const getPartner = catchAsync(async (req, res) => {
   res.send(partnerDetails);
 });
 
+function isRuleApplicable(rule, transaction) {
+  // logic to check if a rule applies
+  // Example: check if earnAmount is within a specific range, activityCode matches, etc.
+  //we can check if ruleType is either from activity, or item, as per that we can test the conditions between transaction and the rule
+  if(rule.ruleType=="")
+  return transaction.activityCode === rule.activityCode && rule.items === transaction.items;
+}
+
+
+function calculatePoints(rule, earnAmount) {
+  return (earnAmount * rule.amountOfPoints.percentageOfAmount) / 100; // Example: calculate percentage points
+}
 
 const earnTransaction = catchAsync(async (req, res) => {
   const { mobileNumber, activityTs, activityCode, actualPurchaseAmount, partnerTransactionId, items, modeOfPayments } = req.body;
@@ -43,6 +57,19 @@ const earnTransaction = catchAsync(async (req, res) => {
     if (!partnerDetails) {
       return res.status(404).send('Partner not found');
     }
+
+    // Fetch rules associated with the partner
+    const rules = await ruleService.getRule({ partnerId });
+    // console.log('Rules :', rules);
+    let applicableRule = null;
+
+    for (const rule of rules) {
+      if (isRuleApplicable(rule, { partnerId, earnAmount, activityCode, items })) {
+        applicableRule = rule;
+        break; // Stop at the first applicable rule or continue if you need more logic
+      }
+    }
+
     const itemTotalAmount = items.reduce((total, item) => {
       return total + item.amount; //later will check for reward per unit flag
     }, 0);
@@ -56,6 +83,11 @@ const earnTransaction = catchAsync(async (req, res) => {
     if(actualPurchaseAmount != totalMopAmount)
       return res.status(400).send({ message: 'Total MOP amount should be equal to earn amount'});
 
+    const mobileNumberRegex = /^[6-9]\d{9}$/;
+
+    if (!mobileNumberRegex.test(mobileNumber)) {
+      return res.status(400).send({ message: "Invalid mobile number format" });
+    }
     let memberDetails = await memberService.getMember({ mobileNumber : mobileNumber });
     if (!memberDetails) {
       const _id = 'user_'+v4();
@@ -71,7 +103,7 @@ const earnTransaction = catchAsync(async (req, res) => {
     });
     
     if (existingTransaction!=null) {
-      console.log("Existing earn :",existingTransaction);
+      // console.log("Existing earn :",existingTransaction);
       return res.status(400).send({ message: 'Duplicate partnerTransactionId' });
     }
 
@@ -83,7 +115,7 @@ const earnTransaction = catchAsync(async (req, res) => {
     }, 0);
     earnAmount -= excludedMopAmount;
 
-    const pointsCalculation = (earnAmount*0.5/100);
+    const pointsCalculation = calculatePoints(applicableRule, earnAmount);
     const transactionDetails = {
       mobileNumber: mobileNumber,
       partnerId,        
@@ -205,9 +237,9 @@ const revertTransaction = catchAsync(async (req, res) => {
       pointsReverted : existingEarnTransaction.pointsEarned
     };
     const trResult = await transactionService.addTransaction(transactionDetails);
-    console.log('balance before revert :',memberDetails.balance);
+    // console.log('balance before revert :',memberDetails.balance);
     memberDetails.balance -= existingEarnTransaction.pointsEarned;
-    console.log('balance after revert :',memberDetails.balance);
+    // console.log('balance after revert :',memberDetails.balance);
     if (!memberDetails.transactions) {
       memberDetails.transactions = [];
     }
@@ -221,6 +253,54 @@ const revertTransaction = catchAsync(async (req, res) => {
   }
 });
 
+const addBaseRule = catchAsync( async(req, res) => {
+  const partnerId = req.params.id;
+  const {ruleCode, ruleDisplayText, mobileNumber, activityTs, activityCode, userFilters, activityFilters, itemFilters, validity, amountOfPoints, expiration, isRewardPerUnit, isActive} = req.body;
+  const ruleType = 'baseRule';
+  const existingRule = await ruleService.getRule({ruleCode});
+  console.log("existing Rule :", existingRule);
+  if(existingRule.length>0)
+  {
+    return res.status(400).send({message: "Rule with same code exist"});
+  }
+  try{
+    const partnerDetails = await partnerService.getPartner({_id: partnerId});
+    const addRule = {
+      mobileNumber,
+      ruleType,
+      partnerId,
+      ruleCode, 
+      ruleDisplayText, 
+      activityTs, 
+      activityCode, 
+      userFilters, 
+      activityFilters, 
+      itemFilters, 
+      validity, 
+      amountOfPoints, 
+      expiration, 
+      isRewardPerUnit, 
+      isActive
+    };
+    const addRuleResult = await ruleService.addBaseRule(addRule);
+    const ruleDetails = {
+      _id: addRuleResult._id,
+      ruleType,
+      ruleCode
+    }
+    if(!partnerDetails.ruleDetails){
+      partnerDetails.ruleDetails = [];
+    }
+    partnerDetails.ruleDetails.push(ruleDetails);
+    const ifError = await partnerService.updatePartner({_id: partnerId},{$push :{ruleDetails:ruleDetails }});
+    res.status(201).send({ message: 'Rule Added Successfully', addRuleResult });
+  }
+  catch(error){
+    res.status(500).send(error.message);
+    console.log(error);
+  }
+})
+
 module.exports = {
   getPartnerList,
   createPartner,
@@ -228,5 +308,6 @@ module.exports = {
   getPartner,
   earnTransaction,
   redeemTransaction,
-  revertTransaction
+  revertTransaction,
+  addBaseRule,
 };

@@ -22,8 +22,19 @@ const earnUnlockPeriod = new mongoose.Schema(
       type: Boolean,
       default: false
   },
-}
-) 
+})
+
+const ruleDetails = new mongoose.Schema({
+  _id: {
+    type: String
+  },
+  ruleCode: {
+    type: String
+  },
+  ruleType: {
+    type: String
+  }
+})
 
 const partnerSchema = new mongoose.Schema(
   {
@@ -58,6 +69,7 @@ const partnerSchema = new mongoose.Schema(
         ref: 'Transaction',
       },
     ],
+    ruleDetails: [ruleDetails],
   },
   {
     timestamps: true,
