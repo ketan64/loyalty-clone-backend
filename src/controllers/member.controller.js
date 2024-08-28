@@ -23,11 +23,6 @@ const getBalance = catchAsync(async (req, res) => {
     }
   });
 
-/*
-git config --global user.email "ketansutar2022@gmail.com"
-git config --global user.name "ketan64"
-*/
-
   //transaction list for member and partner is still pending
   const memberTransactions = catchAsync(async (req, res) => {
     const { mobileNumber } = req.body;
