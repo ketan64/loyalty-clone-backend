@@ -8,6 +8,9 @@ const router = express.Router({ mergeParams: true });
 
 router
   .route('/getBalance')
-  .get(userAuth(['USER','ADMIN']), memberController.getBalance); //validate(partnerValidation.getPartnerList),
-  
+  .get(userAuth(['USER','ADMIN']), memberController.getBalance); //validate(partnerValidation.getPartnerList),  
+ 
+router
+  .route('/getTransactions')
+  .get(userAuth(['USER','ADMIN']), memberController.memberTransactions);  
 module.exports = router;

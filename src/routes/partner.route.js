@@ -17,6 +17,9 @@ router
   .get(userAuth(['ADMIN', 'USER']),validate(partnerValidation.getPartner), partnerController.getPartner)
 
 router
+  .route('/:id/transactions')
+  .get(userAuth(['USER', 'ADMIN']), partnerController.getTransactions);
+router
   .route('/:id/user-activity/earn-points')
   .post(userAuth(['ADMIN', 'USER']),validate(partnerValidation.earnTransaction),partnerController.earnTransaction)
 

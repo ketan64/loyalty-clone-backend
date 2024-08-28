@@ -65,10 +65,10 @@ const partnerSchema = new mongoose.Schema(
     ],
     transactions: [
       {
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         ref: 'Transaction',
       },
-    ],
+  ],
     ruleDetails: [ruleDetails],
   },
   {
