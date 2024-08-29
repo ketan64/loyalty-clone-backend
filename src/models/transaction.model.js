@@ -100,6 +100,9 @@ const transactionSchema = new mongoose.Schema(
     },
     pointsReverted : {
       type : Number,
+    },
+    ruleCode : {
+      type: String
     } 
   },
   {

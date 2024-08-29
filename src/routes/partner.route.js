@@ -17,6 +17,9 @@ router
   .get(userAuth(['ADMIN', 'USER']),validate(partnerValidation.getPartner), partnerController.getPartner)
 
 router
+  .route('/:id/transactions')
+  .get(userAuth(['USER', 'ADMIN']), partnerController.getTransactions);
+router
   .route('/:id/user-activity/earn-points')
   .post(userAuth(['ADMIN', 'USER']),validate(partnerValidation.earnTransaction),partnerController.earnTransaction)
 
@@ -27,4 +30,9 @@ router
 router
   .route('/:id/user-activity/revert-points') 
   .post(partnerController.revertTransaction); //validate(partnerValidation.revertTransaction),userAuth(['ADMIN', 'USER']),
+
+router
+.route('/:id/add-base-rule')
+.post(partnerController.addBaseRule); //add validations and user authentication  
+
 module.exports = router;

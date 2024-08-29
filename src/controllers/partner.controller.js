@@ -1,10 +1,13 @@
 const catchAsync = require('../utils/catchAsync.js');
 const { partnerService } = require('../services/index.js');
 const { memberService } = require('../services/index.js');
+const { ruleService } = require('../services/index.js')
 const { transactionService } = require('../services/index.js');
 const member = require('../models/member.model.js');
 const transaction = require('../models/transaction.model.js')
 const { v4 } = require('uuid');
+const rule = require('../models/rule.model.js');
+const { filter } = require('lodash');
 
 const createPartner = catchAsync(async (req, res) => {
   const { body } = req;
@@ -33,6 +36,106 @@ const getPartner = catchAsync(async (req, res) => {
   res.send(partnerDetails);
 });
 
+function checkActivityFilters(filters, { activityTs, earnAmount }) {
+  return filters.every(filter => {
+    const { operator, field, value } = filter;
+    const fieldValue = getActivityFieldValue(field, { activityTs, earnAmount });
+    return evaluateCondition(fieldValue, operator, value);
+  });
+}
+
+
+function checkItemFilters(filters, items) {
+  // console.error("Items is not an array:", items);
+  return items.every(item => filters.every(filter => {
+    const { operator, field, value } = filter;
+    const fieldValue = getItemFieldValue(field, item);
+    return evaluateCondition(fieldValue, operator, value);
+  }));
+}
+
+
+function evaluateCondition(fieldValue, operator, value) {
+  switch (operator) {
+    case 'equal_to': return fieldValue == value;
+    case 'greater_than': return fieldValue > value;
+    case 'less_than': return fieldValue < value;
+    case 'greater_than_equal_to': return fieldValue >= value
+    case 'less_than_equal_to': return fieldValue <= value
+    default: return false;
+  }
+}
+
+// Get field value from activity filter
+function getActivityFieldValue(field, { activityTs, earnAmount }) {
+  switch (field) {
+    case 'earnAmount': return earnAmount;
+    case 'activityDay': let activityNewDay = new Date(activityTs).getDate();
+      return activityNewDay;
+    case 'activityMonth': let activityNewMonth = new Date(activityTs).getMonth() + 1;
+      switch(activityNewMonth) {
+        case 1 :
+          activityNewMonth = "January";
+          break;
+        case 2 :  
+          activityNewMonth = "February";
+          break;
+        case 3 :  
+          activityNewMonth = "March";
+          break;
+        case 4 :  
+          activityNewMonth = "April";
+          break;
+        case 5 :  
+          activityNewMonth = "May";
+          break;
+        case 6 :  
+          activityNewMonth = "June";
+          break;
+        case 7 :  
+          activityNewMonth = "July";
+          break;
+        case 8 :  
+          activityNewMonth = "August"; 
+          break;
+        case 9 :  
+          activityNewMonth = "Septmber";
+          break;
+        case 10 :  
+          activityNewMonth = "October";
+          break;
+        case 11 :  
+          activityNewMonth = "November";
+          break;
+        case 12 :  
+          activityNewMonth = "December";
+          break;
+      }
+      console.log(activityNewMonth);
+      return activityNewMonth;
+    case 'activityYear': let activityNewYear = new Date(activityTs).getFullYear();
+      console.log("activityNewYear :",activityNewYear);
+      return activityNewYear;
+    default: return null;
+  }
+}
+
+// Get field value from item
+function getItemFieldValue(field, item) {
+  switch (field) {
+    case 'itemId': return item.itemId;
+    case 'category': return item.category;
+    case 'amount': return item.amount;
+    case 'units': return item.units;
+    default: return null;
+  }
+}
+
+function calculatePoints(rule, earnAmount) {
+  return rule.amountOfPoints.allocationType === "percent" 
+  ? (earnAmount * rule.amountOfPoints.percentageOfAmount) / 100 // Example: calculate percentage points
+  : rule.amountOfPoints.points; 
+}
 
 const earnTransaction = catchAsync(async (req, res) => {
   const { mobileNumber, activityTs, activityCode, actualPurchaseAmount, partnerTransactionId, items, modeOfPayments } = req.body;
@@ -43,6 +146,19 @@ const earnTransaction = catchAsync(async (req, res) => {
     if (!partnerDetails) {
       return res.status(404).send('Partner not found');
     }
+
+    const mobileNumberRegex = /^[6-9]\d{9}$/;
+
+    if (!mobileNumberRegex.test(mobileNumber)) {
+      return res.status(400).send({ message: "Invalid mobile number format" });
+    }
+
+    let memberDetails = await memberService.getMember({ mobileNumber : mobileNumber });
+    if (!memberDetails) {
+      const _id = 'user_'+v4();
+      memberDetails = await memberService.addMember({_id, mobileNumber});
+    }
+
     const itemTotalAmount = items.reduce((total, item) => {
       return total + item.amount; //later will check for reward per unit flag
     }, 0);
@@ -56,12 +172,6 @@ const earnTransaction = catchAsync(async (req, res) => {
     if(actualPurchaseAmount != totalMopAmount)
       return res.status(400).send({ message: 'Total MOP amount should be equal to earn amount'});
 
-    let memberDetails = await memberService.getMember({ mobileNumber : mobileNumber });
-    if (!memberDetails) {
-      const _id = 'user_'+v4();
-      memberDetails = await memberService.addMember({_id, mobileNumber});
-    }
-
     const transactionType = "earn"
     const existingTransaction = await transactionService.getTransaction({
       partnerTransactionId,
@@ -71,7 +181,7 @@ const earnTransaction = catchAsync(async (req, res) => {
     });
     
     if (existingTransaction!=null) {
-      console.log("Existing earn :",existingTransaction);
+      // console.log("Existing earn :",existingTransaction);
       return res.status(400).send({ message: 'Duplicate partnerTransactionId' });
     }
 
@@ -83,7 +193,47 @@ const earnTransaction = catchAsync(async (req, res) => {
     }, 0);
     earnAmount -= excludedMopAmount;
 
-    const pointsCalculation = (earnAmount*0.5/100);
+    // Fetch rules associated with the partner
+    const rules = await ruleService.getRule({ partnerId });
+    let applicableRules = [];
+
+    for (const rule of rules) {
+      let isActivityMatch = false;
+      let isItemMatch = false;
+
+      if(rule.activityCode != activityCode)
+        continue;
+      if(rule.activityFilters.length>0){
+        isActivityMatch = checkActivityFilters(rule.activityFilters, { earnAmount, activityTs });
+      }
+
+      if(rule.itemFilters.length>0){
+        // console.log(items);
+        isItemMatch = checkItemFilters(rule.itemFilters, items);
+      }
+
+      if (isActivityMatch && isItemMatch) {
+        applicableRules.push(rule);
+      } else if (isActivityMatch) {
+        applicableRules.push(rule);
+      } else if (isItemMatch) {
+        applicableRules.push(rule);
+      }
+    }
+
+    console.log("Applicable Rules :", applicableRules);
+    
+    const bestRule = applicableRules.reduce((max, rule) => {
+      const points = calculatePoints(rule, earnAmount);
+      return points > max.points ? { rule, points } : max;
+    }, { points: 0 }).rule;
+
+    // console.log("Best Rule :", bestRule);
+    if (!bestRule) {
+      return res.status(400).send({ message: 'No applicable rule found for this transaction' });
+    }
+
+    const pointsCalculation = calculatePoints(bestRule, earnAmount);//(applicableRule, earnAmount);
     const transactionDetails = {
       mobileNumber: mobileNumber,
       partnerId,        
@@ -95,15 +245,21 @@ const earnTransaction = catchAsync(async (req, res) => {
       items,
       modeOfPayments,
       transactionType,
-      pointsEarned : pointsCalculation
+      pointsEarned : pointsCalculation,
+      ruleCode: bestRule.ruleCode
     };
     const trResult = await transactionService.addTransaction(transactionDetails);
     memberDetails.balance += pointsCalculation;
     if (!memberDetails.transactions) {
       memberDetails.transactions = [];
     }
+    if (!partnerDetails.transactions) {
+      partnerDetails.transactions = [];
+    }
     memberDetails.transactions.push(trResult._id);
-    await memberService.updateMember({ _id: memberDetails._id }, { balance: memberDetails.balance, transactions: memberDetails.transactions,  });    
+    partnerDetails.transactions.push(trResult._id);
+    await memberService.updateMember({ _id: memberDetails._id }, { balance: memberDetails.balance, transactions: memberDetails.transactions,  });
+    await partnerService.updatePartner({_id: partnerId},{transactions: partnerDetails.transactions,} )  ;  
     res.status(201).send({ message: 'Earn Transaction recorded', trResult });
   } catch (error) {
     res.status(500).send(error.message);
@@ -205,9 +361,9 @@ const revertTransaction = catchAsync(async (req, res) => {
       pointsReverted : existingEarnTransaction.pointsEarned
     };
     const trResult = await transactionService.addTransaction(transactionDetails);
-    console.log('balance before revert :',memberDetails.balance);
+    // console.log('balance before revert :',memberDetails.balance);
     memberDetails.balance -= existingEarnTransaction.pointsEarned;
-    console.log('balance after revert :',memberDetails.balance);
+    // console.log('balance after revert :',memberDetails.balance);
     if (!memberDetails.transactions) {
       memberDetails.transactions = [];
     }
@@ -221,6 +377,76 @@ const revertTransaction = catchAsync(async (req, res) => {
   }
 });
 
+const addBaseRule = catchAsync( async(req, res) => {
+  const partnerId = req.params.id;
+  const {ruleCode, ruleDisplayText, mobileNumber, activityTs, activityCode, userFilters, activityFilters, itemFilters, validity, amountOfPoints, expiration, isRewardPerUnit, isActive} = req.body;
+  const ruleType = 'baseRule';
+  const existingRule = await ruleService.getRule({ruleCode});
+  // console.log("existing Rule :", existingRule);
+  if(existingRule.length>0)
+  {
+    return res.status(400).send({message: "Rule with same code exist"});
+  }
+  try{
+    const partnerDetails = await partnerService.getPartner({_id: partnerId});
+    const addRule = {
+      mobileNumber,
+      ruleType,
+      partnerId,
+      ruleCode, 
+      ruleDisplayText, 
+      activityTs, 
+      activityCode, 
+      userFilters, 
+      activityFilters, 
+      itemFilters, 
+      validity, 
+      amountOfPoints, 
+      expiration, 
+      isRewardPerUnit, 
+      isActive
+    };
+    const addRuleResult = await ruleService.addBaseRule(addRule);
+    const ruleDetails = {
+      _id: addRuleResult._id,
+      ruleType,
+      ruleCode
+    }
+    if(!partnerDetails.ruleDetails){
+      partnerDetails.ruleDetails = [];
+    }
+    partnerDetails.ruleDetails.push(ruleDetails);
+    const ifError = await partnerService.updatePartner({_id: partnerId},{$push :{ruleDetails:ruleDetails }});
+    res.status(201).send({ message: 'Rule Added Successfully', addRuleResult });
+  }
+  catch(error){
+    res.status(500).send(error.message);
+    console.log(error);
+  }
+});
+
+const getTransactions = catchAsync( async(req, res) => {
+  const partnerId = req.params.id;
+  try{
+    const partnerDetails = await partnerService.getPartner({ _id : partnerId });
+      if (!partnerDetails) {
+        return res.status(404).send({ message: "Partner not found" });
+      }
+      const partnerTransactionsList = partnerDetails.transactions;
+      const transactionsDetails = [];
+      for (let item of partnerTransactionsList) {
+        const itemDetails = await transactionService.getTransaction({ _id: item }); 
+        if (itemDetails) {
+          transactionsDetails.push(itemDetails);
+        }
+      }
+      res.status(200).send({ transactionsDetails });
+  }catch(error){
+    console.log(error);
+    res.status(500).send(error.message);
+  }
+});
+
 module.exports = {
   getPartnerList,
   createPartner,
@@ -228,5 +454,7 @@ module.exports = {
   getPartner,
   earnTransaction,
   redeemTransaction,
-  revertTransaction
+  revertTransaction,
+  addBaseRule,
+  getTransactions
 };

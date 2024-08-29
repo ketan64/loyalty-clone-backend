@@ -8,10 +8,13 @@ const getPartnerList = async (filter = {}, options) => partner.find();
 
 const updatePartner = async (filter, body) => partner.findOneAndUpdate(filter, body, { new: true });
 
+const addBaseRule = async(data) => partner.c
+
 
 module.exports = {
   getPartner,
   addPartner,
   getPartnerList,
   updatePartner,
+  addBaseRule
 };
