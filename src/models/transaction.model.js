@@ -103,6 +103,21 @@ const transactionSchema = new mongoose.Schema(
     },
     ruleCode : {
       type: String
+    },
+    isTransactionReverted: {
+      type: Boolean
+    },
+    returnedAmount: {
+      type: Number,
+      default: 0
+    },
+    totalReturnedAmount: {
+      type: Number,
+      default: 0
+    },
+    totalReturnedPoints: {
+      type: Number,
+      default: 0
     } 
   },
   {
