@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.20.0",
     "http-status": "^1.7.4",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
