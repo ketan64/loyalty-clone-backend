@@ -221,7 +221,7 @@ const earnTransaction = catchAsync(async (req, res) => {
       }
     }
 
-    console.log("Applicable Rules :", applicableRules);
+    // console.log("Applicable Rules :", applicableRules);
     
     const bestRule = applicableRules.reduce((max, rule) => {
       const points = calculatePoints(rule, earnAmount);
@@ -319,20 +319,26 @@ const redeemTransaction = catchAsync( async (req, res) => {
 const revertTransaction = catchAsync(async (req, res) => {
   const partnerId = req.params.id;
   const {mobileNumber, earnTransactionId, partnerTransactionId, returnedItems, returnedAmount, modeOfPayments, activityTs, activityCode, actualPurchaseAmount} = req.body;
+  
   try{
     const partnerDetails = await partnerService.getPartner({_id: partnerId});
     if (!partnerDetails) {
       return res.status(404).send('Partner not found');
     }
-    let memberDetails = await memberService.getMember({ mobileNumber : mobileNumber });
-    const transactionType = "revert"
+
+    let memberDetails = await memberService.getMember({ mobileNumber });
+    if (!memberDetails) {
+      return res.status(404).send('Member not found');
+    }
+
+    const transactionType = "revert";
     const existingTransaction = await transactionService.getTransaction({
       partnerTransactionId,
       mobileNumber,
-      transactionType: transactionType,
+      transactionType,
       partnerId
     });
-    if (existingTransaction!=null) {
+    if (existingTransaction != null) {
       return res.status(400).send({ message: 'Duplicate partnerTransactionId' });
     }
 
@@ -342,12 +348,44 @@ const revertTransaction = catchAsync(async (req, res) => {
       transactionType: "earn",
       partnerId
     });
-    if(!existingEarnTransaction){
-      return res.status(400).send({message: 'No earn transaction found with ${earnTransactionId}'});
+    if (!existingEarnTransaction) {
+      return res.status(400).send({ message: `No earn transaction found with ${earnTransactionId}` });
     }
-   
+
+    let totalReturnedAmount = existingEarnTransaction.totalReturnedAmount || 0;
+    let totalReturnedPoints = existingEarnTransaction.totalReturnedPoints || 0;
+
+    if ((totalReturnedAmount + returnedAmount) > existingEarnTransaction.earnAmount) {
+      return res.status(400).send({ message: 'Returned amount exceeds the original transaction amount' });
+    }
+
+    const ruleCode = existingEarnTransaction.ruleCode;
+    const ruleDetails = await ruleService.getRule({
+      ruleCode,
+      partnerId
+    });
+    if (!ruleDetails || ruleDetails.length === 0) {
+      return res.status(400).send({ message: 'Rule not found' });
+    }
+
+    const rulePercentage = ruleDetails[0].amountOfPoints.percentageOfAmount;
+
+    const newEarnAmount = existingEarnTransaction.earnAmount - (totalReturnedAmount + returnedAmount);
+    const newEarnedPoints = (newEarnAmount * rulePercentage) / 100;
+    const remainingEarnedPoints = existingEarnTransaction.pointsEarned - totalReturnedPoints;
+
+    let pointsToRevert = remainingEarnedPoints - newEarnedPoints;
+    pointsToRevert = Math.min(pointsToRevert, remainingEarnedPoints);
+
+    if (pointsToRevert < 0) {
+      pointsToRevert = 0;
+    }
+
+    totalReturnedAmount += returnedAmount;
+    totalReturnedPoints += pointsToRevert;
+
     const transactionDetails = {
-      mobileNumber: mobileNumber,
+      mobileNumber,
       partnerId,
       earnTransactionId,
       activityTs: new Date(activityTs),
@@ -358,20 +396,36 @@ const revertTransaction = catchAsync(async (req, res) => {
       transactionType,
       returnedAmount,
       modeOfPayments,
-      pointsReverted : existingEarnTransaction.pointsEarned
+      totalReturnedAmount,
+      totalReturnedPoints,
+      pointsReverted: pointsToRevert
     };
+
     const trResult = await transactionService.addTransaction(transactionDetails);
-    // console.log('balance before revert :',memberDetails.balance);
-    memberDetails.balance -= existingEarnTransaction.pointsEarned;
-    // console.log('balance after revert :',memberDetails.balance);
+
+    memberDetails.balance -= pointsToRevert;
+    if (memberDetails.balance < 0) memberDetails.balance = 0;
     if (!memberDetails.transactions) {
       memberDetails.transactions = [];
     }
     memberDetails.transactions.push(trResult._id);
-    await memberService.updateMember({ _id: memberDetails._id }, { balance: memberDetails.balance, transactions: memberDetails.transactions });    
+
+    existingEarnTransaction.totalReturnedAmount = totalReturnedAmount;
+    existingEarnTransaction.totalReturnedPoints = totalReturnedPoints;
+
+    await transactionService.updateTransaction(
+      { _id: existingEarnTransaction._id },
+      {
+        totalReturnedAmount,
+        totalReturnedPoints
+      }
+    );
+
+    await memberService.updateMember({ _id: memberDetails._id }, { balance: memberDetails.balance, transactions: memberDetails.transactions });
+
     res.status(201).send({ message: 'Revert Transaction recorded', trResult });
   }
-  catch(error) {
+  catch (error) {
     res.status(500).send(error.message);
     console.log(error);
   }
